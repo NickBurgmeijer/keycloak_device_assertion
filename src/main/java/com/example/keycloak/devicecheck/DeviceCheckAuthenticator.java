@@ -125,7 +125,9 @@ public class DeviceCheckAuthenticator implements Authenticator {
         // deviceCert is only non-null if the prove endpoint saw it over mTLS, it chains to the
         // device CA and was within its validity period (see DeviceProveResource).
         if (deviceCert == null) {
-            failWithRetry(context, "No valid device certificate was presented.");
+            // Browsers remember a cancelled cert prompt per site, so a plain retry can't recover.
+            failWithRetry(context, "No valid device certificate was presented. "
+                    + "If you cancelled the certificate prompt, restart your browser and try again.");
             return;
         }
 

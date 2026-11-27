@@ -1,0 +1,33 @@
+# Test stack: nginx (idp.localhost + device.localhost on :8443) in front of Keycloak with the plugin.
+# Run from the repo root:  ./build.sh && test/certs.sh && docker compose -f test/compose.yml up -d
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command:
+      - start-dev
+      - --import-realm
+      - --hostname=https://idp.localhost:8443
+      - --proxy-headers=xforwarded
+      - --http-enabled=true
+      - --spi-x509cert-lookup-provider=nginx
+      - --spi-x509cert-lookup-nginx-ssl-client-cert=ssl-client-cert
+      - --spi-x509cert-lookup-nginx-trust-proxy-verification=true
+      - --spi-authenticator-device-check-authenticator-device-host-url=https://device.localhost:8443
+      - --spi-realm-restapi-extension-device-check-device-ca-file=/opt/keycloak/conf/device-ca.pem
+      - --log-level=INFO,com.example.keycloak:debug
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ../dist/device-check-authenticator.jar:/opt/keycloak/providers/device-check-authenticator.jar:ro
+      - ./certs/device-ca.pem:/opt/keycloak/conf/device-ca.pem:ro
+      - ./realm.json:/opt/keycloak/data/import/test-realm.json:ro
+
+  nginx:
+    image: docker.io/library/nginx:1.27-alpine
+    depends_on: [keycloak]
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/certs:ro

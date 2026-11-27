@@ -1,0 +1,37 @@
+{
+  "realm": "test",
+  "enabled": true,
+  "browserFlow": "device browser",
+  "users": [
+    {
+      "username": "test",
+      "enabled": true,
+      "email": "test@example.invalid",
+      "emailVerified": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "realmRoles": ["default-roles-test"],
+      "credentials": [{ "type": "password", "value": "test", "temporary": false }]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "test-client",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["https://example.invalid/*"]
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "device browser",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "auth-username-password-form", "requirement": "REQUIRED", "priority": 10, "userSetupAllowed": false },
+        { "authenticator": "device-check-authenticator", "requirement": "REQUIRED", "priority": 20, "userSetupAllowed": false }
+      ]
+    }
+  ]
+}

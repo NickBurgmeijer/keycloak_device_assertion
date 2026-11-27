@@ -1,4 +1,4 @@
-# Keycloak Device Check authenticator
+# Keycloak Device Check authenticator (vibecode)
 
 A Keycloak authenticator step that shows a page with a small script. The script collects device state in the browser and posts it back. The server then runs your custom action on it.
 

@@ -57,9 +57,34 @@ Proxy requirements:
 - **Every** host in front of Keycloak must overwrite or strip that header on incoming requests. Otherwise a client can send a forged certificate header.
 - If user mTLS on the main host also goes through the proxy, both hosts use the same header. The endpoint's CA check is what keeps user certs from counting as device certs.
 
+## LDAP device allow-list (optional)
+
+When `ldap-url` is set, a valid device certificate is not enough. The certificate's CN must match exactly one device entry in LDAP, and that entry must be a `member` of the allowed-devices group. Anything else refuses the login: an unknown device, a device outside the group, duplicate entries, or LDAP being down or slow. That last case is fail-closed.
+
+```
+--spi-authenticator-device-check-authenticator-ldap-url=ldaps://ldap.example.com
+--spi-authenticator-device-check-authenticator-ldap-bind-dn=cn=keycloak,ou=services,dc=example,dc=com
+--spi-authenticator-device-check-authenticator-ldap-bind-password=...
+--spi-authenticator-device-check-authenticator-ldap-device-base-dn=ou=devices,dc=example,dc=com
+--spi-authenticator-device-check-authenticator-ldap-allowed-group-dn=cn=allowed-devices,ou=groups,dc=example,dc=com
+# optional:
+--spi-authenticator-device-check-authenticator-ldap-device-filter=(&(objectClass=device)(cn={0}))
+--spi-authenticator-device-check-authenticator-ldap-timeout-ms=3000
+```
+
+- To allow a device, add it to the group. To revoke one, remove it. No schema changes are needed: it uses the standard `device` and `groupOfNames` object classes.
+- For Active Directory computer objects, set the filter to `(&(objectClass=computer)(cn={0}))`.
+- For `ldaps://`, the LDAP server's CA must be in the JVM truststore Keycloak runs with.
+- The bind account only needs read access to the device OU and the group.
+- Don't pass the bind password on the command line in production. Use the matching `KC_SPI_…` environment variable or a config file instead.
+- Devices are matched by CN, so your device CA must never issue the same CN to two devices.
+
 ## Test setup (Docker / Podman)
 
-nginx serves `idp.localhost` and `device.localhost` on port 8443, in front of Keycloak 26 with the plugin and a `test` realm (user `test` / `test`, admin `admin` / `admin`).
+nginx serves `idp.localhost` and `device.localhost` on port 8443, in front of Keycloak 26 with the plugin and a `test` realm (user `test` / `test`, admin `admin` / `admin`). An OpenLDAP container (`test/ldap/`) holds the device directory:
+- `device-1` is in the allowed group.
+- `device-2` is in LDAP but not in the group.
+- `device-3` has no LDAP entry.
 
 ```bash
 ./build.sh
@@ -68,7 +93,7 @@ docker compose -f test/compose.yml up -d      # or: podman compose
 test/smoke.sh                                 # end-to-end checks
 ```
 
-`smoke.sh` logs in with curl and checks the following: no cert → 401, rogue-CA cert → rejected by nginx, forged cert header on the main host → 401, wrong `Origin` → 403, unknown or reused nonce → 404, device cert → 204, login completes, and `handleDeviceState` receives `CN=device-1`.
+`smoke.sh` logs in with curl and checks the following: no cert → 401, rogue-CA cert → rejected by nginx, forged cert header on the main host → 401, wrong `Origin` → 403, unknown or reused nonce → 404, device cert → 204, login completes, and `handleDeviceState` receives `CN=device-1`. It also checks the LDAP allow-list: `device-1` gets in, `device-2` and `device-3` are refused, and a stopped LDAP container refuses everyone until it's back.
 
 To try it in a browser:
 1. Trust `test/certs/tls-ca.pem`, and import `test/certs/device.p12` (password `changeit`).

@@ -1,0 +1,10 @@
+# Minimal OpenLDAP with a seeded device directory (test only).
+FROM docker.io/library/alpine:3.20
+RUN apk add --no-cache openldap openldap-back-mdb
+COPY slapd.conf /etc/openldap/slapd.conf
+COPY seed.ldif /seed.ldif
+RUN mkdir -p /run/openldap /var/lib/openldap/openldap-data \
+ && slapadd -f /etc/openldap/slapd.conf -l /seed.ldif
+EXPOSE 389
+# -d 256 keeps slapd in the foreground and logs each search.
+CMD ["slapd", "-d", "256", "-f", "/etc/openldap/slapd.conf", "-h", "ldap:///"]

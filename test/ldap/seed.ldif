@@ -1,0 +1,30 @@
+dn: dc=example,dc=test
+objectClass: dcObject
+objectClass: organization
+dc: example
+o: Example
+
+dn: ou=devices,dc=example,dc=test
+objectClass: organizationalUnit
+ou: devices
+
+dn: ou=groups,dc=example,dc=test
+objectClass: organizationalUnit
+ou: groups
+
+# Allowed: in the directory and in the group.
+dn: cn=device-1,ou=devices,dc=example,dc=test
+objectClass: device
+cn: device-1
+
+# Known but not allowed: in the directory, not in the group.
+dn: cn=device-2,ou=devices,dc=example,dc=test
+objectClass: device
+cn: device-2
+
+# device-3 has a valid cert but no directory entry at all.
+
+dn: cn=allowed-devices,ou=groups,dc=example,dc=test
+objectClass: groupOfNames
+cn: allowed-devices
+member: cn=device-1,ou=devices,dc=example,dc=test

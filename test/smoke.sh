@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end test against the compose stack: logs in as test/test, then checks the
-# device-cert endpoint's accept/reject paths and that the cert reaches handleDeviceState.
+# device-cert endpoint's accept/reject paths, that the cert reaches handleDeviceState,
+# and the LDAP allow-list (including fail-closed when LDAP is down).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -73,5 +74,36 @@ check "login completes with code" "$([[ $loc == https://example.invalid/cb*code=
 # 6. The cert actually reached handleDeviceState
 logs=$($COMPOSE -f compose.yml logs keycloak 2>&1 | grep 'Device state for realm=test' | tail -1 || true)
 check "handleDeviceState saw device-1" "$([[ $logs == *deviceCert=CN=device-1* ]] && echo yes)" yes
+
+# 7. LDAP allow-list: only devices in the allowed-devices group get in
+# Full login with test/test and the given device cert (certs/<name>.pem);
+# prints the error page, or the redirect URL if the login went through.
+device_login() {
+    : >"$JAR"
+    local p prove submit
+    p=$(curl_ "$BASE/realms/test/protocol/openid-connect/auth?client_id=test-client&response_type=code&scope=openid&redirect_uri=https://example.invalid/cb")
+    p=$(curl_ --data-urlencode username=test --data-urlencode password=test "$(form_action 'id="kc-form-login"' <<<"$p")")
+    prove=$(grep -o "$DEV/realms/test/device-check/prove?nonce=[A-Za-z0-9]*" <<<"$p" | head -1 || true)
+    submit=$(form_action 'id="device-check-form"' <<<"$p")
+    curl_ -o /dev/null -X POST -H "Origin: $BASE" --cert "$C/$1.pem" --key "$C/$1.key" "$prove" || true
+    curl_ -w '%{redirect_url}' --data-urlencode 'deviceState={"source":"smoke-test"}' "$submit" || true
+}
+allowed() { [[ $1 == *https://example.invalid/cb*code=* ]] && echo yes || echo no; }
+has() { grep -q "$2" <<<"$1" && echo yes || echo no; }
+
+check "device-1 (in allowed group) gets in" "$(allowed "$(device_login device)")" yes
+check "device-2 (in LDAP, not in group) refused" "$(has "$(device_login device-2)" 'not allowed to sign in')" yes
+check "device-3 (not in LDAP) refused" "$(has "$(device_login device-3)" 'not allowed to sign in')" yes
+
+$COMPOSE -f compose.yml stop ldap >/dev/null 2>&1
+check "LDAP down -> refused (fail closed)" "$(has "$(device_login device)" 'directory is unavailable')" yes
+$COMPOSE -f compose.yml start ldap >/dev/null 2>&1
+result=no
+for _ in $(seq 10); do
+    result=$(allowed "$(device_login device)")
+    [[ $result == yes ]] && break
+    sleep 1
+done
+check "LDAP back -> device-1 gets in again" "$result" yes
 
 echo "All checks passed."

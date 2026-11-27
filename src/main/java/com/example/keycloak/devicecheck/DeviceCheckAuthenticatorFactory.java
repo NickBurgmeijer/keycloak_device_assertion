@@ -70,7 +70,8 @@ public class DeviceCheckAuthenticatorFactory implements AuthenticatorFactory {
     @Override
     public void init(Config.Scope config) {
         // --spi-authenticator-device-check-authenticator-device-host-url=https://device.idp.example.com
-        authenticator = new DeviceCheckAuthenticator(config.get("device-host-url"));
+        // --spi-authenticator-device-check-authenticator-ldap-url=ldaps://... (see README for the rest)
+        authenticator = new DeviceCheckAuthenticator(config.get("device-host-url"), DeviceDirectory.fromConfig(config));
     }
 
     @Override

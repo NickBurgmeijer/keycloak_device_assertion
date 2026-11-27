@@ -13,6 +13,10 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.util.JsonSerialization;
 
+import javax.naming.InvalidNameException;
+import javax.naming.NamingException;
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import java.io.IOException;
 import java.net.URI;
 import java.security.cert.X509Certificate;
@@ -36,8 +40,12 @@ public class DeviceCheckAuthenticator implements Authenticator {
     /** e.g. https://device.idp.example.com — null disables the device-cert step. */
     private final String deviceHostUrl;
 
-    public DeviceCheckAuthenticator(String deviceHostUrl) {
+    /** null disables the LDAP allow-list check. */
+    private final DeviceDirectory directory;
+
+    public DeviceCheckAuthenticator(String deviceHostUrl, DeviceDirectory directory) {
         this.deviceHostUrl = deviceHostUrl;
+        this.directory = directory;
     }
 
     @Override
@@ -131,9 +139,38 @@ public class DeviceCheckAuthenticator implements Authenticator {
             return;
         }
 
+        if (directory != null) {
+            String cn = null;
+            try {
+                cn = commonName(deviceCert);
+                if (cn == null || !directory.isAllowed(cn)) {
+                    LOG.infof("Device %s is not in the allowed-devices group", cn);
+                    failWithRetry(context, "This device is not allowed to sign in.");
+                    return;
+                }
+            } catch (NamingException e) {
+                // Fail closed: no directory answer means no access.
+                LOG.errorf(e, "Device directory lookup failed for %s", cn);
+                failWithRetry(context, "The device directory is unavailable. Try again later.");
+                return;
+            }
+        }
+
         // Example: keep it on the auth session so later steps / mappers can read it.
         context.getAuthenticationSession().setUserSessionNote(NOTE_KEY, raw);
         context.success();
+    }
+
+    /** The most specific CN of the subject, or null. */
+    static String commonName(X509Certificate cert) throws InvalidNameException {
+        String cn = null;
+        // getRdns() runs from the least to the most specific RDN, so the last CN wins.
+        for (Rdn rdn : new LdapName(cert.getSubjectX500Principal().getName()).getRdns()) {
+            if (rdn.getType().equalsIgnoreCase("CN")) {
+                cn = rdn.getValue().toString();
+            }
+        }
+        return cn;
     }
 
     @Override

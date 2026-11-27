@@ -15,6 +15,12 @@ services:
       - --spi-authenticator-device-check-authenticator-device-host-url=https://device.localhost:8443
       - --spi-realm-restapi-extension-device-check-device-ca-file=/opt/keycloak/conf/device-ca.pem
       - --log-level=INFO,com.example.keycloak:debug
+      - --spi-authenticator-device-check-authenticator-ldap-url=ldap://ldap:389
+      - --spi-authenticator-device-check-authenticator-ldap-bind-dn=cn=admin,dc=example,dc=test
+      - --spi-authenticator-device-check-authenticator-ldap-bind-password=admin
+      - --spi-authenticator-device-check-authenticator-ldap-device-base-dn=ou=devices,dc=example,dc=test
+      - --spi-authenticator-device-check-authenticator-ldap-allowed-group-dn=cn=allowed-devices,ou=groups,dc=example,dc=test
+    depends_on: [ldap]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
@@ -22,6 +28,9 @@ services:
       - ../dist/device-check-authenticator.jar:/opt/keycloak/providers/device-check-authenticator.jar:ro
       - ./certs/device-ca.pem:/opt/keycloak/conf/device-ca.pem:ro
       - ./realm.json:/opt/keycloak/data/import/test-realm.json:ro
+
+  ldap:
+    build: ./ldap
 
   nginx:
     image: docker.io/library/nginx:1.27-alpine

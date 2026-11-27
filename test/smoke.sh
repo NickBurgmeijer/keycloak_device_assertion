@@ -75,7 +75,13 @@ check "login completes with code" "$([[ $loc == https://example.invalid/cb*code=
 logs=$($COMPOSE -f compose.yml logs keycloak 2>&1 | grep 'Device state for realm=test' | tail -1 || true)
 check "handleDeviceState saw device-1" "$([[ $logs == *deviceCert=CN=device-1* ]] && echo yes)" yes
 
-# 7. LDAP allow-list: only devices in the allowed-devices group get in
+# 7. Require Group: a user outside /staff is refused right after the password step
+: >"$JAR"
+p=$(curl_ "$BASE/realms/test/protocol/openid-connect/auth?client_id=test-client&response_type=code&scope=openid&redirect_uri=https://example.invalid/cb")
+p=$(curl_ --data-urlencode username=outsider --data-urlencode password=outsider "$(form_action 'id="kc-form-login"' <<<"$p")")
+check "user outside /staff refused" "$(grep -c 'not allowed to sign in here' <<<"$p" || true)" 1
+
+# 8. LDAP allow-list: only devices in the allowed-devices group get in
 # Full login with test/test and the given device cert (certs/<name>.pem);
 # prints the error page, or the redirect URL if the login went through.
 device_login() {

@@ -10,8 +10,37 @@
       "emailVerified": true,
       "firstName": "Test",
       "lastName": "User",
-      "realmRoles": ["default-roles-test"],
-      "credentials": [{ "type": "password", "value": "test", "temporary": false }]
+      "realmRoles": [
+        "default-roles-test"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/staff"
+      ]
+    },
+    {
+      "username": "outsider",
+      "enabled": true,
+      "email": "outsider@example.invalid",
+      "emailVerified": true,
+      "firstName": "Out",
+      "lastName": "Sider",
+      "realmRoles": [
+        "default-roles-test"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "outsider",
+          "temporary": false
+        }
+      ]
     }
   ],
   "clients": [
@@ -19,7 +48,9 @@
       "clientId": "test-client",
       "publicClient": true,
       "standardFlowEnabled": true,
-      "redirectUris": ["https://example.invalid/*"]
+      "redirectUris": [
+        "https://example.invalid/*"
+      ]
     }
   ],
   "authenticationFlows": [
@@ -29,9 +60,71 @@
       "topLevel": true,
       "builtIn": false,
       "authenticationExecutions": [
-        { "authenticator": "auth-username-password-form", "requirement": "REQUIRED", "priority": 10, "userSetupAllowed": false },
-        { "authenticator": "device-check-authenticator", "requirement": "REQUIRED", "priority": 20, "userSetupAllowed": false }
+        {
+          "authenticator": "auth-username-password-form",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "staff only",
+          "requirement": "CONDITIONAL",
+          "priority": 15,
+          "authenticatorFlow": true,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "device-check-authenticator",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        }
       ]
+    },
+    {
+      "alias": "staff only",
+      "description": "Deny users outside /staff",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-group",
+          "authenticatorConfig": "not in staff",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "deny-access-authenticator",
+          "authenticatorConfig": "deny outsiders",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "staff"
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "not in staff",
+      "config": {
+        "group": "/staff",
+        "negate": "true"
+      }
+    },
+    {
+      "alias": "deny outsiders",
+      "config": {
+        "denyErrorMessage": "You are not allowed to sign in here."
+      }
     }
   ]
 }
